@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+
+# Notebook
+.ipynb_checkpoints/
+
+# Virtual env
+.venv/
+venv/
+
+# Streamlit
+.streamlit/
+
+# Editor / OS
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Data (large raw parquet files, regenerate via src/data/download.py)
+data/raw/*.parquet
+
+# Large model checkpoints (regenerate via src/train.py, keep only best_model.pt tracked)
+models/*.pt
+!models/best_model.pt

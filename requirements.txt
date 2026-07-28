@@ -1,0 +1,8 @@
+numpy>=2.0
+pandas>=2.2
+pyarrow>=17.0
+torch>=2.5
+sacrebleu>=2.4
+matplotlib>=3.9
+streamlit>=1.40
+tqdm>=4.66
