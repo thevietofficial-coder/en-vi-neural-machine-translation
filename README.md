@@ -54,26 +54,41 @@ VI token t-1 -> [Embedding] --concat--> [GRU decoder] <-- context_t --[Bahdanau 
 
 Corpus BLEU on the held-out `test` split (1,268 sentence pairs):
 
-**BLEU: TBD** (see `reports/eval_results.json` after running `src/evaluate.py`)
+**BLEU: 7.02** (see `reports/eval_results.json`, produced by `src/evaluate.py`)
 
 | Metric | Value |
 |---|---|
-| Train pairs (<=30 tokens both sides) | TBD |
-| Validation pairs | TBD |
+| Train pairs (<=30 tokens both sides) | 96,537 |
+| Validation pairs | 861 |
 | Test pairs | 1,268 |
-| Trainable parameters | TBD |
-| Epochs trained | TBD |
-| Final train loss | TBD |
-| Final val loss | TBD |
-| Test BLEU | TBD |
+| Trainable parameters | 12,257,253 |
+| Epochs trained | 4 |
+| Final train loss | 4.104 |
+| Final val loss | 4.919 (still decreasing every epoch) |
+| Test BLEU | 7.02 |
 
 ![Training curve](reports/figures/loss_curve.png)
 
+Val loss was still dropping at epoch 4/4 (5.58 &rarr; 5.26 &rarr; 5.05 &rarr; 4.92) with
+no sign of overfitting yet, so BLEU is capped by *training budget*, not by
+the architecture &mdash; see "Training notes" below for exactly what
+compute/time tradeoff produced this number and how to push it higher.
+
 ### Sample translations
+
+Short sentences translate reasonably; longer ones expose a textbook failure
+mode of greedy-decoded, undertrained seq2seq models &mdash; repetition
+looping (the decoder gets "stuck" re-emitting a high-probability word because
+nothing enforces that each source word be covered once):
 
 | English | Reference (Vietnamese) | Model output |
 |---|---|---|
-| TBD | TBD | TBD |
+| And I was very proud . | Tôi đã rất tự hào về đất nước tôi . | và tôi rất hào rất hào . |
+| I was so shocked . | Tôi đã bị sốc . | tôi đã rất sốc . |
+| My family was not poor , and myself , I had never experienced hunger . | Gia đình của tôi không nghèo , và bản thân tôi thì chưa từng phải chịu đói . | đình tôi không không nghèo , , , tôi , chưa bao giờ bao giờ . |
+| In school , we spent a lot of time studying the history of Kim Il-Sung , but we never learned much about the outside world ... | Ở trường , chúng tôi dành rất nhiều thời gian để học về cuộc đời của chủ tịch Kim II-Sung ... | trường trường , chúng tôi đã nhiều nhiều về những những , , , nhưng chúng tôi không bao giờ , , , , , , ... (repetition loop) |
+
+Full set of 10 held-out samples in `reports/eval_results.json`.
 
 ### Attention heatmap (from the Streamlit app)
 
@@ -88,10 +103,26 @@ build (`torch==2.13.0+cpu`) was available to install (the CUDA wheel index
 had no matching build for the installed Python 3.14 at training time), so
 the model was trained on CPU. To keep CPU training tractable, hidden/embedding
 dimensions were kept modest (128 vs. the 512/512 used in the original
-Luong & Manning IWSLT15 setup) and sentences were capped at 30 tokens
-(see `src/config.py`). With a CUDA build of PyTorch, `EMB_DIM`,
-`ENC_HIDDEN_DIM`, and `DEC_HIDDEN_DIM` can be raised back to 512+ and
-`MAX_LEN` to 50 for meaningfully higher BLEU, at the cost of longer training.
+Luong & Manning IWSLT15 setup), sentences were capped at 30 tokens, and
+training was stopped after 4 epochs (~70 minutes total on a 20-core CPU) with
+a length-bucketed batch sampler to cut padding waste (see `src/config.py`
+and `src/data/dataset.py::BucketBatchSampler`).
+
+That budget lands the model at **BLEU 7.02** &mdash; well below the ~23-26
+BLEU published for this exact dataset with the full-size (512-dim, GPU-trained,
+many-epoch) setup, and the sample translations above show why: short sentences
+are already coherent, but longer ones fall into repetition loops because (a)
+greedy decoding has no mechanism to penalize re-visiting the same output word,
+and (b) 4 epochs isn't enough for the attention alignment to fully sharpen.
+Both are addressable without changing the architecture:
+
+- **More epochs / a GPU build of PyTorch** &mdash; val loss was still falling
+  at epoch 4/4 with no overfitting, so BLEU has clear headroom left on the
+  table purely from more training.
+- **Beam search instead of greedy decoding** at inference (`Seq2Seq.translate`
+  currently takes the single argmax token each step).
+- Raising `EMB_DIM` / `ENC_HIDDEN_DIM` / `DEC_HIDDEN_DIM` back to 512 and
+  `MAX_LEN` to 50, matching the original paper's setup.
 
 ## Project structure
 
